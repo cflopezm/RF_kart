@@ -1,129 +1,87 @@
 #include <Arduino.h>
 
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
 #include <Wire.h> 
 
-Adafruit_MPU6050 mpu;
+#define MPU 0x68
+
+// Factores de conversion
+#define A_R 16384.0
+#define G_R 131.0
+
+// conversion de rad -> deg
+#define RAD2DEG 57.295779
+
+// valores de MPU 6050 de 16 bits
+
+int16_t ax, ay, az, gx, gy, gz;
+
+// angulos
+float Acc[2];
+float Gy[3];
+float Angle[3];
+
+String values;
+long time_prev;
+float dt;
+
 
 void setup() {
   // put your setup code here, to run once:
+
+  Wire.begin(4,5); // pin D2=SDA , D1=SCL
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B);
+  Wire.write(0);
+  Wire.endTransmission(true);
   Serial.begin(115200);
-  while(!Serial)
-    delay(10);
-  
-  Serial.println("IMU MPU 6050 test...");
-
-  if(!mpu.begin()){
-    Serial.println("Failed to find MPU 6050");
-    while(true){
-      delay(10);
-    }
-  }
-
-  Serial.println("MPU 6050 found!!!");
-
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-  Serial.print("Accelerometer range set to: ");
-
-  switch (mpu.getAccelerometerRange())
-  {
-  case MPU6050_RANGE_2_G:
-    Serial.println("+- 2G");
-    break;
-
-  case MPU6050_RANGE_4_G:
-    Serial.print("+- 4G");
-    break;
-    
-  case MPU6050_RANGE_8_G:
-    Serial.print("+- 8G");
-  
-  case MPU6050_RANGE_16_G:
-    Serial.print("+- 16G");
-  }
-
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-  Serial.println("Gyro range set to: ");
-
-  switch (mpu.getGyroRange())
-  {
-  case MPU6050_RANGE_250_DEG:
-    Serial.println("+- 250 DEG/s");
-    break;
-
-  case MPU6050_RANGE_500_DEG:
-    Serial.print("+- 500 DEG/s");
-    break;
-    
-  case MPU6050_RANGE_1000_DEG:
-    Serial.print("+- 1000 DEG/s");
-  
-  case MPU6050_RANGE_2000_DEG:
-    Serial.print("+- 1000 DEG/s");
-  }
-
-  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
-  Serial.print("Filter bandwidth set to: ");
-  
-  switch (mpu.getFilterBandwidth())
-  {
-  case MPU6050_BAND_260_HZ:
-    Serial.println("260 Hz");
-    break;
-
-  case MPU6050_BAND_184_HZ:
-    Serial.print("184 Hz");
-    break;
-    
-  case MPU6050_BAND_94_HZ:
-    Serial.print("94 Hz");
-    break;
-
-  case MPU6050_BAND_44_HZ:
-    Serial.print("44 Hz");
-    break;
-
-  case MPU6050_BAND_21_HZ:
-    Serial.println("21 Hz");
-    break;
-  
-  case MPU6050_BAND_10_HZ:
-    Serial.print("10 Hz");
-    break;
-
-  case MPU6050_BAND_5_HZ:
-    Serial.println("5 Hz");
-    break;
-  }
-
-  Serial.println("");
-  delay(100);
-
   
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
 
-  // print values
-  Serial.print("\nAccelation X: ");
-  Serial.print(a.acceleration.x);
-  Serial.print("\tAccelation Y: ");
-  Serial.print(a.acceleration.y);
-  Serial.print("\tAccelation Z: ");
-  Serial.print(a.acceleration.z);
-  Serial.print(" m2/s");;
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B); // el registro 0x3B es ax (acc x)
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU, 6, true); // se piden 6 registros desde 0x3B
 
-  Serial.print("\nRotation X: ");
-  Serial.print(g.gyro.x);
-  Serial.print("\tRotation Y: ");
-  Serial.print(g.gyro.y);
-  Serial.print("\tRotation Z: ");
-  Serial.print(g.gyro.z);
-  Serial.println(" rad/s");
+  ax = Wire.read()<<8|Wire.read();
+  ay = Wire.read()<<8|Wire.read();
+  az = Wire.read()<<8|Wire.read();
 
-  delay(500);
+  // A partir de los valores del acelerometro, se calculan los angulos Y, X
+  //respectivamente, con la formula de la tangente.
+  Acc[1] = atan(-1*(ax/A_R)/sqrt(pow((ay/A_R),2) + pow((az/A_R),2)))*RAD2DEG;
+  Acc[0] = atan((ay/A_R)/sqrt(pow((ax/A_R),2) + pow((az/A_R),2)))*RAD2DEG;
+
+  //Leer los valores del Giroscopio
+   Wire.beginTransmission(MPU);
+   Wire.write(0x43);
+   Wire.endTransmission(false);
+   Wire.requestFrom(MPU,6,true);   //A partir del 0x43, se piden 6 registros
+   gx = Wire.read()<<8|Wire.read(); //Cada valor ocupa 2 registros
+   gy = Wire.read()<<8|Wire.read();
+   gz = Wire.read()<<8|Wire.read();
+ 
+   //Calculo del angulo del Giroscopio
+   Gy[0] = gx/G_R;
+   Gy[1] = gy/G_R;
+   Gy[2] = gz/G_R;
+
+   dt = (millis() - time_prev) / 1000.0;
+   time_prev = millis();
+ 
+   //Aplicar el Filtro Complementario
+   Angle[0] = 0.98 *(Angle[0]+Gy[0]*dt) + 0.02*Acc[0];
+   Angle[1] = 0.98 *(Angle[1]+Gy[1]*dt) + 0.02*Acc[1];
+
+   //Integración respecto del tiempo paras calcular el YAW
+   Angle[2] = Angle[2]+Gy[2]*dt;
+ 
+   //Mostrar los valores por consola
+   values = "90, " +String(Angle[0]) + "," + String(Angle[1]) + "," + String(Angle[2]) + ", -90";
+   Serial.println(values);
+   
+   delay(10);
+ 
 }
