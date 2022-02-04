@@ -1,5 +1,9 @@
 #include <Arduino.h>
 
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+
 //pins esp32 wroover
 const int trigPin = 5;
 const int echoPin = 18;
