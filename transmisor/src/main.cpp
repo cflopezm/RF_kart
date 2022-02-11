@@ -1,42 +1,45 @@
 #include <Arduino.h>
 
-/*
-  Rui Santos
-  Complete project details at https://RandomNerdTutorials.com/esp-now-esp32-arduino-ide/
-  
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files.
-  
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-*/
-
 #include <esp_now.h>
 #include <WiFi.h>
 
+#include <Wire.h>
+#include <Adafruit_MLX90614.h>
+#include <SPI.h>
+
 #define SOUND_SPEED 0.034
+
 
 // REPLACE WITH YOUR RECEIVER MAC Address
 uint8_t broadcastAddress[] = {0xFF, 0x84, 0xF3, 0xEB, 0xC9, 0xE0};
 
-// pinout HC-SR04
+/* ----------------- HC-SR04 ----------------- */
 
-// echo and trigger from ultrasonic - Arduno uno
+// echo and trigger from ultrasonic - ESP32 
 const int trigPin = 18;
 const int echoPin = 5;
 
 //Defines variables
-
 long duration;
 int distance;
+
+/* ----------------- END HC-SR04 ----------------- */
+
+/* ----------------- MLX9061 Temperatura ----------------- */
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+float tempEnv;
+float tempObj;
+
+
+/* ----------------- END MLX9061 ----------------- */
 
 // Structure example to send data
 // Must match the receiver structure
 typedef struct struct_message {
   char a[32];
-  int b;
-  float c;
-  bool d;
+  int b;   // distancia en cm
+  float c; // temperatura en °C
+  //bool d;
 } struct_message;
 
 // Create a struct_message called myData
@@ -51,9 +54,14 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void setup() {
   // Init Serial Monitor
   Serial.begin(115200);
+
+  // set pin HC-SR04
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
  
+  // begin MLX
+  mlx.begin();
+
   // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
 
@@ -82,7 +90,6 @@ void setup() {
  
 void loop() {
   // distance sensor data
-
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
@@ -92,24 +99,29 @@ void loop() {
   duration = pulseIn(echoPin, HIGH);
   distance = (duration * SOUND_SPEED)/2;
 
+  // temperature sensor data
+  tempEnv = mlx.readAmbientTempC();
+  tempObj = mlx.readObjectTempC();
 
   // Set values to send
-  strcpy(myData.a, "THIS IS A CHAR");
-  myData.b = random(1,10);
-  myData.c = distance;
-  myData.d = true;
+  strcpy(myData.a, "Envio exitoso!!!");
+  myData.b = distance;
+  myData.c = tempObj;
+  //myData.d = false;
   
   // Send message via ESP-NOW
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
    
   if (result == ESP_OK) {
     Serial.print("Distance: ");
-    Serial.print(distance);
+    Serial.println(distance);
+    Serial.print("Temperature: ");
+    Serial.println(tempObj);
     Serial.println("\tSent with success");
   }
   else {
     Serial.println("Error sending the data");
   }
   
-  delay(1000);
+  delay(500);
 }
