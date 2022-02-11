@@ -19,8 +19,8 @@ extern uint8_t MediumNumbers[];// Selecciono el tamaño de fuente para los numer
 // Must match the sender structure
 typedef struct struct_message {
     char a[32];
-    int b;
-    float c;
+    int b;   // distancia en cm
+    float c; // temperatura en °C
     //String d;
     bool e;
 } struct_message;
@@ -32,44 +32,49 @@ struct_message myData;
 void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   memcpy(&myData, incomingData, sizeof(myData));
   //distancia = myData.c;
-  Serial.print("Bytes received: ");
-  Serial.println(len);
-  Serial.print("Char: ");
+  //Serial.print("Bytes received: ");
+  //Serial.println(len);
+  Serial.print("Estado: ");
   Serial.println(myData.a);
-  Serial.print("Int: ");
+  Serial.print("Temperatura:");
   Serial.println(myData.b);
-  Serial.print("Distancia: ");
+  Serial.print("Nivel de gasolina:");
   Serial.println(myData.c);
-  // print value on OLED
-
-  screen.print("Nivel de gasolina:", 0, 0);
+  /* print value on OLED */
+  // datos de temperatura
+  screen.print("Temperatura:", 0, 0);
   screen.printNumF(myData.c, 2, 0, 15);
-  screen.print("cm", 50, 15);
+  screen.print("Celsius", 50, 15);
+
+  //datos distancia
+  screen.print("Nivel de gasolina:", 0, 40);
+  screen.printNumI(myData.b, 0, 55);
+  screen.print("cm", 25, 55);
+
   screen.update();
 
-  // fin oled
+  /* fin oled */
 
   /*Serial.print("String: ");
   Serial.println(myData.d);*/
-  Serial.print("Bool: ");
-  Serial.println(myData.e);
+  //Serial.print("Bool: ");
+  //Serial.println(myData.e);
   Serial.println();
 }
 
  
 void setup() {
-  // OLED welcome message
-
-  screen.begin();//inicializa el display OLED
-  screen.setFont(SmallFont);//seteo el tamaño de la fuente
-  /*screen.print("Bienvenido kart UN", CENTER, 32);//imprime la frase entre comillas
-  screen.update();// actualiza la pantalla haciendo lo anterior
-  delay(2000);*/
-  screen.clrScr(); // borra la pantalla
   
   // Initialize Serial Monitor
   Serial.begin(115200);
   
+  // OLED welcome message
+  screen.begin();//inicializa el display OLED
+  screen.setFont(SmallFont);//seteo el tamaño de la fuente
+  screen.print("Bienvenido kart UN", CENTER, 32);
+  screen.update();// actualiza la pantalla haciendo lo anterior
+  delay(2000);
+  screen.clrScr(); // borra la pantalla
    
   // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
